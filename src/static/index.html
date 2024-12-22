@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tideye API Tester</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .endpoint {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0052a3;
+        }
+        pre {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+        .vessel-card {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #0066cc;
+        }
+        .error {
+            color: red;
+            background: #fff0f0;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .vessel-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .vessel-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #0066cc;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .vessel-card h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .vessel-card p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        .details-button {
+            background: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+            padding: 5px 10px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+        
+        .details-button:hover {
+            background: #e0e0e0;
+        }
+        
+        .loading {
+            padding: 20px;
+            text-align: center;
+            color: #666;
+        }
+        
+        .date-picker {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .input-group label {
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        input[type="datetime-local"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .status-bar {
+            background: #f8f8f8;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status-ready {
+            color: #00a854;
+        }
+        
+        .status-waiting {
+            color: #faad14;
+        }
+        
+        .invalid-mmsi {
+            background: #fff0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin: 0 2px;
+            display: inline-block;
+        }
+        
+        .remove-mmsi {
+            background: none;
+            border: none;
+            color: #ff4d4f;
+            cursor: pointer;
+            padding: 0 4px;
+            margin-left: 4px;
+        }
+        
+        .remove-mmsi:hover {
+            color: #ff7875;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tideye API Tester</h1>
+    
+    <div class="status-bar">
+        <div class="status-item">
+            <span>AISHub Status:</span>
+            <span id="aishubStatus">Loading...</span>
+        </div>
+    </div>
+    
+    <div class="status-bar">
+        <div class="status-item">
+            <span>Invalid MMSIs:</span>
+            <span id="invalidMMSIs">Loading...</span>
+        </div>
+    </div>
+    
+    <div class="endpoint">
+        <h2>Get All Vessel Names</h2>
+        <div class="date-picker">
+            <div class="input-group">
+                <label for="startDate">Start:</label>
+                <input type="datetime-local" id="startDate">
+            </div>
+            <div class="input-group">
+                <label for="endDate">End:</label>
+                <input type="datetime-local" id="endDate">
+            </div>
+        </div>
+        <button onclick="fetchVesselNames()">Fetch Vessels</button>
+        <div id="vesselNamesResult"></div>
+    </div>
+
+    <div class="endpoint">
+        <h2>Get Vessel by MMSI</h2>
+        <input type="text" id="mmsiInput" placeholder="Enter MMSI" value="319139200">
+        <button onclick="fetchVessel()">Fetch Vessel</button>
+        <div id="vesselResult"></div>
+    </div>
+
+    <script>
+        function formatVessel(vessel) {
+            return `
+                <div class="vessel-card">
+                    <h3>${vessel.name || 'Unknown Vessel'}</h3>
+                    <p>MMSI: ${vessel.mmsi}</p>
+                    <p>Last Seen: ${new Date(vessel.lastSeen).toLocaleString()}</p>
+                    <button onclick="fetchVessel('${vessel.mmsi}')" class="details-button">View Details</button>
+                </div>
+            `;
+        }
+
+        async function fetchVesselNames() {
+            const resultDiv = document.getElementById('vesselNamesResult');
+            resultDiv.innerHTML = '<div class="loading">Loading vessels...</div>';
+            
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            try {
+                const params = new URLSearchParams({
+                    start: new Date(startDate).toISOString(),
+                    end: new Date(endDate).toISOString()
+                });
+
+                const response = await fetch(`/api/composite/vessel-names?${params}`);
+                const vessels = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <h3>Found ${vessels.length} vessels between ${new Date(startDate).toLocaleString()} and ${new Date(endDate).toLocaleString()}:</h3>
+                        <div class="vessel-grid">
+                            ${vessels.map(formatVessel).join('')}
+                        </div>
+                    `;
+                } else {
+                    throw new Error(vessels.error || 'Failed to fetch vessels');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function fetchVessel(mmsi = null) {
+            const inputMmsi = mmsi || document.getElementById('mmsiInput').value;
+            const resultDiv = document.getElementById('vesselResult');
+            resultDiv.innerHTML = '<div class="loading">Loading vessel details...</div>';
+            
+            try {
+                const response = await fetch(`/api/signalk/vessels/${inputMmsi}`);
+                const vessel = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <pre>${JSON.stringify(vessel, null, 2)}</pre>
+                    `;
+                } else {
+                    throw new Error(vessel.error || 'Failed to fetch vessel');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function updateAISHubStatus() {
+            try {
+                const response = await fetch('/api/aishub/status');
+                const status = await response.json();
+                
+                const statusElement = document.getElementById('aishubStatus');
+                if (status.canCall) {
+                    statusElement.innerHTML = `<span class="status-ready">Ready (Last call: ${new Date(status.lastCall).toLocaleString()})</span>`;
+                } else {
+                    statusElement.innerHTML = `<span class="status-waiting">Waiting (${status.nextCallIn}s) - Last call: ${new Date(status.lastCall).toLocaleString()}</span>`;
+                }
+            } catch (error) {
+                console.error('Failed to fetch AISHub status:', error);
+            }
+        }
+
+        async function updateInvalidMMSIs() {
+            try {
+                const response = await fetch('/api/aishub/invalid-mmsis');
+                const mmsis = await response.json();
+                
+                const element = document.getElementById('invalidMMSIs');
+                if (mmsis.length === 0) {
+                    element.innerHTML = '<span class="status-ready">None</span>';
+                } else {
+                    element.innerHTML = mmsis.map(mmsi => `
+                        <span class="invalid-mmsi">
+                            ${mmsi}
+                            <button onclick="removeInvalidMMSI('${mmsi}')" class="remove-mmsi">×</button>
+                        </span>
+                    `).join(', ');
+                }
+            } catch (error) {
+                console.error('Failed to fetch invalid MMSIs:', error);
+            }
+        }
+
+        async function removeInvalidMMSI(mmsi) {
+            try {
+                const response = await fetch(`/api/aishub/invalid-mmsis/${mmsi}`, {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    updateInvalidMMSIs();
+                }
+            } catch (error) {
+                console.error('Failed to remove invalid MMSI:', error);
+            }
+        }
+
+        setInterval(() => {
+            updateAISHubStatus();
+            updateInvalidMMSIs();
+        }, 1000);
+
+        function initializeDateInputs() {
+            const end = new Date();
+            const start = new Date(end.getTime() - 24*60*60*1000);
+            
+            document.getElementById('startDate').value = start.toISOString().slice(0,16);
+            document.getElementById('endDate').value = end.toISOString().slice(0,16);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeDateInputs();
+            updateAISHubStatus();
+            updateInvalidMMSIs();
+        });
+    </script>
+</body>
+</html> 

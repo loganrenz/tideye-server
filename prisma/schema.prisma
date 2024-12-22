@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Vessel {
+  id        Int      @id @default(autoincrement())
+  mmsi      String   @unique
+  name      String?
+  lastSeen  DateTime
+  metadata  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  positions PositionHistory[]
+}
+
+model PositionHistory {
+  id        Int      @id @default(autoincrement())
+  mmsi      String
+  lat       Float
+  lon       Float
+  timestamp DateTime
+  createdAt DateTime @default(now())
+
+  vessel    Vessel   @relation(fields: [mmsi], references: [mmsi])
+
+  @@index([mmsi, timestamp])
+}
+
+model SystemSettings {
+  id          String   @id
+  value       String
+  updatedAt   DateTime @updatedAt
+} 
